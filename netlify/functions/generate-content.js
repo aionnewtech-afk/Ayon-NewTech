@@ -71,26 +71,41 @@ Responda SOMENTE com um JSON válido, sem markdown, sem crases, sem texto antes 
 
     if (!resp.ok) {
       const errText = await resp.text();
+      console.error('Erro da API Anthropic:', resp.status, errText);
       return { statusCode: resp.status, body: JSON.stringify({ error: 'Erro na API da Anthropic: ' + errText }) };
     }
 
     const data = await resp.json();
     const raw = (data.content && data.content[0] && data.content[0].text) || '';
-    const clean = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    console.log('Resposta bruta da IA:', raw);
+
+    let clean = raw.replace(/json/gi, '').replace(//g, '').trim();
+
+    // Se vier texto antes/depois do JSON, extrai só o bloco { ... }
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (match) clean = match[0];
 
     let parsed;
     try {
       parsed = JSON.parse(clean);
     } catch (e) {
+      console.error('Falha ao interpretar JSON. Texto recebido:', clean);
       return { statusCode: 500, body: JSON.stringify({ error: 'Não consegui interpretar a resposta da IA.', raw: clean }) };
     }
 
+    if (!parsed.linkedin || !parsed.instagram) {
+      console.error('JSON incompleto:', parsed);
+      return { statusCode: 500, body: JSON.stringify({ error: 'Resposta da IA veio incompleta.', raw: parsed }) };
+    }
+
+    console.log('Sucesso! Copy gerada.');
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(parsed)
     };
   } catch (err) {
+    console.error('Erro inesperado na function:', err);
     return { statusCode: 500, body: JSON.stringify({ error: String(err) }) };
   }
 };
